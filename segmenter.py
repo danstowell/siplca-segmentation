@@ -87,6 +87,9 @@ import scipy.io
 
 import plca
 
+from string import lower
+import csv
+
 logging.basicConfig(level=logging.INFO,
                     format='%(levelname)s %(name)s %(asctime)s '
                     '%(filename)s:%(lineno)d  %(message)s')
@@ -105,12 +108,20 @@ def extract_features(wavfilename, fctr=400, fsd=1.0, type=1):
 
     Calls Dan Ellis' chrombeatftrs Matlab function.
     """
-    logger.info('Extracting beat-synchronous chroma features from %s',
-                wavfilename)
-    x,fs = mlab.wavread(wavfilename, nout=2)
-    feats,beats = mlab.chrombeatftrs(x.mean(1)[:,np.newaxis], fs, fctr, fsd,
-                                     type, nout=2)
-    songlen = x.shape[0] / fs
+    if lower(wavfilename[-4:]) == '.csv':
+        logger.info('CSV filename reading preprocessed features from %s',
+                    wavfilename)
+        csvr = csv.reader(open(wavfilename, 'rb'), delimiter=',')
+        feats = np.array([[float(x) for x in row] for row in csvr])
+        beats = np.arange(len(feats)) * 0.0058   # simple fake frame locations
+        songlen = len(feats) * 0.0058
+    else:
+        logger.info('Extracting beat-synchronous chroma features from %s',
+                    wavfilename)
+        x,fs = mlab.wavread(wavfilename, nout=2)
+        feats,beats = mlab.chrombeatftrs(x.mean(1)[:,np.newaxis], fs, fctr, fsd,
+                                         type, nout=2)
+        songlen = x.shape[0] / fs
     return feats, beats.flatten(), songlen
 
 def segment_song(seq, rank=4, win=32, seed=None,
@@ -517,6 +528,8 @@ def _die_with_usage():
 
     Segments inputfile.wav using the given parameters and writes the
     output labels to outputfile.
+
+    If you supply a .csv rather than a .wav then it assumes some kind of already-processed spectrogram data as input.
     """
     print usage
     sys.exit(1)
